@@ -9,12 +9,17 @@ namespace BrawlhallaReplayReader
 	{
 		static string sourceFolder = "replays";
 		static string outputFolder = "output";
-		static readonly string[] familiarPlayers = {};
+		static readonly string[] familiarPlayers = { };
 		public static void Main(string[] args)
 		{
 			if (args.Length > 0 && args[0] == "a")
 			{
 				ProcessAllReplays();
+				return;
+			}
+			if (args.Length > 0 && args[0].ToCharArray()[0] == 'd')
+			{
+				Debug();
 				return;
 			}
 			Console.WriteLine("===== Brawlhalla Replay Reader =====");
@@ -127,7 +132,7 @@ namespace BrawlhallaReplayReader
 								string teamsString = fields[Constants.GameHeaders.IndexOf("teams")];
 								string pattern = @"\[(.*?)\]";
 								MatchCollection matches = Regex.Matches(teamsString, pattern, RegexOptions.IgnoreCase);
-								
+
 								foreach (var team in matches)
 								{
 									game.Teams.Add(team.ToString().Trim('[', ']').Split(';').ToList());
@@ -309,6 +314,39 @@ namespace BrawlhallaReplayReader
 			}
 			Console.WriteLine($"Processed {allGames.Count} games to {outputFile}");
 			Console.WriteLine("All replays processed.");
+		}
+
+		// Prints the map, players, results, and heroes
+		// I just wrote this to correlate hero IDs with hero names
+		private static void Debug()
+		{
+			System.IO.Directory.CreateDirectory(sourceFolder);
+			string[] files = Directory.GetFiles("replays", "*.replay");
+			Console.WriteLine($"Found {files.Length} replay files.");
+			foreach (string file in files)
+			{
+				try
+				{
+					Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
+					float version = float.Parse(file.Split(['[', ']'])[1]);
+					string map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']);
+					List<string> entities = new List<string>();
+					foreach (var entity in replay.Entities)
+					{
+						string hero = Constants.Heroes.ContainsKey((int)entity.Player.Heroes[0].HeroID) ? Constants.Heroes[(int)entity.Player.Heroes[0].HeroID] : entity.Player.Heroes[0].HeroID.ToString();
+						string placement = replay.Results.ContainsKey(entity.EntityID) ? replay.Results[entity.EntityID].ToString() : "N/A";
+						entities.Add($"{placement}. {entity.Name}: {hero}");
+					}
+					entities.Sort();
+					Console.WriteLine($"{map} [{version}]");
+					entities.ForEach((entity) => Console.WriteLine(entity));
+					Console.WriteLine();
+				}
+				catch (Exception e)
+				{
+					Console.WriteLine($"Error processing {file}: {e.Message}");
+				}
+			}
 		}
 	}
 }
