@@ -3,5 +3,5 @@ Uses the 9.08 replay format (post AltMode update).
 
 ## Usage
 ```sh
-BrawlhallaReplayReader [input.replay] [output.json] [-i]
+dotnet run a
 ```
