@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace BrawlhallaReplayReader
+namespace BrawlhallaReplayReader.v9_08
 {
 	///<summary>Class <c>Utils</c> is used to store utility functions.</summary>
 	internal static class Utils

@@ -161,119 +161,46 @@ namespace BrawlhallaReplayReader
 			System.IO.Directory.CreateDirectory(sourceFolder);
 			string[] files = Directory.GetFiles("replays", "*.replay");
 			Console.WriteLine($"Found {files.Length} replay files.");
+			Dictionary<float, int> unsupportedVersions = new Dictionary<float, int>();
 			foreach (string file in files)
 			{
 				float version = float.Parse(file.Split(['[', ']'])[1]);
-				if (version < 9.0f) continue;
-
-				try
+				if (version >= 9.08f)
 				{
-					Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
-
-					GameInfo gameInfo = new GameInfo
-					{
-						StartTime = DateTimeOffset.FromUnixTimeSeconds(replay.Entities[0].Player.ConnectionTime),
-						Map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']),
-						Version = version,
-						Checksum = replay.Checksum,
-						GameLength = (int)replay.Length,
-						IsTeam = replay.GameSettings.Flags.ToString().Contains("Teams") && replay.Entities.Count > 2
-					};
-
-					List<PlayerProfile> players = new List<PlayerProfile>();
-					Dictionary<int, List<string>> teams = new Dictionary<int, List<string>>();
-					int familiarPlayerCount = 0;
-
-					foreach (var entity in replay.Entities)
-					{
-						if (familiarPlayers.Any((player) => player.ToLowerInvariant() == entity.Name.ToLowerInvariant()))
-						{
-							familiarPlayerCount++;
-						}
-
-						int deaths = 0;
-						replay.Deaths.ToList().ForEach((death) =>
-						{
-							if (death.EntityID == entity.EntityID)
-							{
-								deaths += 1;
-							}
-						});
-
-						if (gameInfo.IsTeam)
-						{
-							if (!teams.ContainsKey(entity.Player.Team))
-							{
-								teams[entity.Player.Team] = new List<string>();
-							}
-							teams[entity.Player.Team].Add(entity.Name);
-						}
-
-						PlayerProfile profile = new PlayerProfile
-						{
-							Name = entity.Name,
-							Placement = replay.Results[entity.EntityID],
-							Deaths = deaths,
-							Hero = Constants.Heroes.ContainsKey((int)entity.Player.Heroes[0].HeroID) ? Constants.Heroes[(int)entity.Player.Heroes[0].HeroID] : entity.Player.Heroes[0].HeroID.ToString(),
-							Team = entity.Player.Team,
-							GameInfo = gameInfo
-						};
-
-						players.Add(profile);
-					}
-
-					if (familiarPlayerCount < 2) continue;
-
-					players.Sort((a, b) => a.Placement.CompareTo(b.Placement));
-
-					for (int i = 0; i < players.Count; i++)
-					{
-						gameInfo.Players.Add(players[i].Name);
-						gameInfo.Heroes.Add(players[i].Hero);
-						gameInfo.Deaths.Add(players[i].Deaths);
-
-						if (gameInfo.IsTeam)
-						{
-							players[i].TeamMates = teams[players[i].Team];
-						}
-
-						// Hash this game result and skip if already seen
-						if (!playerResults.ContainsKey(players[i].Name))
-						{
-							Console.WriteLine($"Unfamiliar player: {players[i].Name}. File: {file}");
-						}
-						else
-						{
-							string key = players[i].Name + "." + gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
-							if (seen.Contains(key))
-							{
-								skippedCount[players[i].Name] += 1;
-								continue;
-							}
-							seen.Add(key);
-							playerResults[players[i].Name].Add(players[i]);
-						}
-					}
-
-					if (gameInfo.IsTeam)
-					{
-						gameInfo.Teams = teams.Values.ToList();
-					}
-
-					string gameKey = gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
-					if (seen.Contains(gameKey))
-					{
-						skippedGames += 1;
-					}
-					else
-					{
-						allGames.Add(gameInfo);
-						seen.Add(gameKey);
-					}
+					ProcessGame_v908(file, playerResults, allGames, seen, skippedCount, ref skippedGames);
 				}
-				catch (Exception e)
+				else if (version >= 9.01f)
 				{
-					Console.WriteLine($"Error processing {file}: {e.Message}");
+					ProcessGame_v901(file, playerResults, allGames, seen, skippedCount, ref skippedGames);
+				}
+				else if (version >= 8.07f)
+				{
+					ProcessGame_v807(file, playerResults, allGames, seen, skippedCount, ref skippedGames);
+				}
+				else if (version >= 8.06f)
+				{
+					ProcessGame_v806(file, playerResults, allGames, seen, skippedCount, ref skippedGames);
+				}
+				else if (version >= 7.13f)
+				{
+					ProcessGame_v713(file, playerResults, allGames, seen, skippedCount, ref skippedGames);
+				}
+				else
+				{
+					if (!unsupportedVersions.ContainsKey(version))
+					{
+						unsupportedVersions[version] = 0;
+					}
+					unsupportedVersions[version] += 1;
+				}
+			}
+
+			if (unsupportedVersions.Count > 0)
+			{
+				Console.WriteLine("Unsupported versions found:");
+				foreach (var version in unsupportedVersions)
+				{
+					Console.WriteLine($"Version {version.Key} - {version.Value} files");
 				}
 			}
 
@@ -316,6 +243,581 @@ namespace BrawlhallaReplayReader
 			Console.WriteLine("All replays processed.");
 		}
 
+		private static void ProcessGame_v908(string file, Dictionary<string, List<PlayerProfile>> playerResults, List<GameInfo> allGames, HashSet<string> seen, Dictionary<string, int> skippedCount, ref int skippedGames)
+		{
+			float version = float.Parse(file.Split(['[', ']'])[1]);
+			try
+			{
+				BrawlhallaReplayReader.v9_08.Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
+
+				GameInfo gameInfo = new GameInfo
+				{
+					StartTime = DateTimeOffset.FromUnixTimeSeconds(replay.Entities[0].Player.ConnectionTime),
+					Map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']),
+					Version = version,
+					Checksum = replay.Checksum,
+					GameLength = (int)replay.Length,
+					IsTeam = replay.GameSettings.Flags.ToString().Contains("Teams") && replay.Entities.Count > 2
+				};
+
+				List<PlayerProfile> players = new List<PlayerProfile>();
+				Dictionary<int, List<string>> teams = new Dictionary<int, List<string>>();
+				int familiarPlayerCount = 0;
+
+				foreach (var entity in replay.Entities)
+				{
+					if (familiarPlayers.Any((player) => player.ToLowerInvariant() == entity.Name.ToLowerInvariant()))
+					{
+						familiarPlayerCount++;
+					}
+
+					int deaths = 0;
+					replay.Deaths.ToList().ForEach((death) =>
+					{
+						if (death.EntityID == entity.EntityID)
+						{
+							deaths += 1;
+						}
+					});
+
+					if (gameInfo.IsTeam)
+					{
+						if (!teams.ContainsKey(entity.Player.Team))
+						{
+							teams[entity.Player.Team] = new List<string>();
+						}
+						teams[entity.Player.Team].Add(entity.Name);
+					}
+
+					PlayerProfile profile = new PlayerProfile
+					{
+						Name = entity.Name,
+						Placement = replay.Results[entity.EntityID],
+						Deaths = deaths,
+						Hero = Constants.Heroes.ContainsKey((int)entity.Player.Heroes[0].HeroID) ? Constants.Heroes[(int)entity.Player.Heroes[0].HeroID] : entity.Player.Heroes[0].HeroID.ToString(),
+						Team = entity.Player.Team,
+						GameInfo = gameInfo
+					};
+
+					players.Add(profile);
+				}
+
+				if (familiarPlayerCount < 2) return;
+
+				players.Sort((a, b) => a.Placement.CompareTo(b.Placement));
+
+				for (int i = 0; i < players.Count; i++)
+				{
+					gameInfo.Players.Add(players[i].Name);
+					gameInfo.Heroes.Add(players[i].Hero);
+					gameInfo.Deaths.Add(players[i].Deaths);
+
+					if (gameInfo.IsTeam)
+					{
+						players[i].TeamMates = teams[players[i].Team];
+					}
+
+					// Hash this game result and skip if already seen
+					if (!playerResults.ContainsKey(players[i].Name))
+					{
+						Console.WriteLine($"Unfamiliar player: {players[i].Name}. File: {file}");
+					}
+					else
+					{
+						string key = players[i].Name + "." + gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+						if (seen.Contains(key))
+						{
+							skippedCount[players[i].Name] += 1;
+							continue;
+						}
+						seen.Add(key);
+						playerResults[players[i].Name].Add(players[i]);
+					}
+				}
+
+				if (gameInfo.IsTeam)
+				{
+					gameInfo.Teams = teams.Values.ToList();
+				}
+
+				string gameKey = gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+				if (seen.Contains(gameKey))
+				{
+					skippedGames += 1;
+					return;
+				}
+				else
+				{
+					allGames.Add(gameInfo);
+					seen.Add(gameKey);
+				}
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine($"Error processing {file}: {e.Message}");
+			}
+		}
+
+		private static void ProcessGame_v901(string file, Dictionary<string, List<PlayerProfile>> playerResults, List<GameInfo> allGames, HashSet<string> seen, Dictionary<string, int> skippedCount, ref int skippedGames)
+		{
+			float version = float.Parse(file.Split(['[', ']'])[1]);
+			try
+			{
+				BrawlhallaReplayReader.v9_01.Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
+
+				GameInfo gameInfo = new GameInfo
+				{
+					StartTime = DateTimeOffset.FromUnixTimeSeconds(replay.Entities[0].Player.ConnectionTime),
+					Map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']),
+					Version = version,
+					Checksum = replay.Checksum,
+					GameLength = (int)replay.Length,
+					IsTeam = replay.GameSettings.Flags.ToString().Contains("Teams") && replay.Entities.Count > 2
+				};
+
+				List<PlayerProfile> players = new List<PlayerProfile>();
+				Dictionary<int, List<string>> teams = new Dictionary<int, List<string>>();
+				int familiarPlayerCount = 0;
+
+				foreach (var entity in replay.Entities)
+				{
+					if (familiarPlayers.Any((player) => player.ToLowerInvariant() == entity.Name.ToLowerInvariant()))
+					{
+						familiarPlayerCount++;
+					}
+
+					int deaths = 0;
+					replay.Deaths.ToList().ForEach((death) =>
+					{
+						if (death.EntityID == entity.EntityID)
+						{
+							deaths += 1;
+						}
+					});
+
+					if (gameInfo.IsTeam)
+					{
+						if (!teams.ContainsKey(entity.Player.Team))
+						{
+							teams[entity.Player.Team] = new List<string>();
+						}
+						teams[entity.Player.Team].Add(entity.Name);
+					}
+
+					PlayerProfile profile = new PlayerProfile
+					{
+						Name = entity.Name,
+						Placement = replay.Results[entity.EntityID],
+						Deaths = deaths,
+						Hero = Constants.Heroes.ContainsKey((int)entity.Player.Heroes[0].HeroID) ? Constants.Heroes[(int)entity.Player.Heroes[0].HeroID] : entity.Player.Heroes[0].HeroID.ToString(),
+						Team = entity.Player.Team,
+						GameInfo = gameInfo
+					};
+
+					players.Add(profile);
+				}
+
+				if (familiarPlayerCount < 2) return;
+
+				players.Sort((a, b) => a.Placement.CompareTo(b.Placement));
+
+				for (int i = 0; i < players.Count; i++)
+				{
+					gameInfo.Players.Add(players[i].Name);
+					gameInfo.Heroes.Add(players[i].Hero);
+					gameInfo.Deaths.Add(players[i].Deaths);
+
+					if (gameInfo.IsTeam)
+					{
+						players[i].TeamMates = teams[players[i].Team];
+					}
+
+					// Hash this game result and skip if already seen
+					if (!playerResults.ContainsKey(players[i].Name))
+					{
+						Console.WriteLine($"Unfamiliar player: {players[i].Name}. File: {file}");
+					}
+					else
+					{
+						string key = players[i].Name + "." + gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+						if (seen.Contains(key))
+						{
+							skippedCount[players[i].Name] += 1;
+							continue;
+						}
+						seen.Add(key);
+						playerResults[players[i].Name].Add(players[i]);
+					}
+				}
+
+				if (gameInfo.IsTeam)
+				{
+					gameInfo.Teams = teams.Values.ToList();
+				}
+
+				string gameKey = gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+				if (seen.Contains(gameKey))
+				{
+					skippedGames += 1;
+					return;
+				}
+				else
+				{
+					allGames.Add(gameInfo);
+					seen.Add(gameKey);
+				}
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine($"Error processing {file}: {e.Message}");
+			}
+		}
+
+		private static void ProcessGame_v807(string file, Dictionary<string, List<PlayerProfile>> playerResults, List<GameInfo> allGames, HashSet<string> seen, Dictionary<string, int> skippedCount, ref int skippedGames)
+		{
+			float version = float.Parse(file.Split(['[', ']'])[1]);
+			try
+			{
+				BrawlhallaReplayReader.v8_07.Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
+
+				GameInfo gameInfo = new GameInfo
+				{
+					StartTime = DateTimeOffset.FromUnixTimeSeconds(replay.Entities[0].Player.ConnectionTime),
+					Map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']),
+					Version = version,
+					Checksum = replay.Checksum,
+					GameLength = (int)replay.Length,
+					IsTeam = replay.GameSettings.Flags.ToString().Contains("Teams") && replay.Entities.Count > 2
+				};
+
+				List<PlayerProfile> players = new List<PlayerProfile>();
+				Dictionary<int, List<string>> teams = new Dictionary<int, List<string>>();
+				int familiarPlayerCount = 0;
+
+				foreach (var entity in replay.Entities)
+				{
+					if (familiarPlayers.Any((player) => player.ToLowerInvariant() == entity.Name.ToLowerInvariant()))
+					{
+						familiarPlayerCount++;
+					}
+
+					int deaths = 0;
+					replay.Deaths.ToList().ForEach((death) =>
+					{
+						if (death.EntityID == entity.EntityID)
+						{
+							deaths += 1;
+						}
+					});
+
+					if (gameInfo.IsTeam)
+					{
+						if (!teams.ContainsKey(entity.Player.Team))
+						{
+							teams[entity.Player.Team] = new List<string>();
+						}
+						teams[entity.Player.Team].Add(entity.Name);
+					}
+
+					PlayerProfile profile = new PlayerProfile
+					{
+						Name = entity.Name,
+						Placement = replay.Results[entity.EntityID],
+						Deaths = deaths,
+						Hero = Constants.Heroes.ContainsKey((int)entity.Player.Heroes[0].HeroID) ? Constants.Heroes[(int)entity.Player.Heroes[0].HeroID] : entity.Player.Heroes[0].HeroID.ToString(),
+						Team = entity.Player.Team,
+						GameInfo = gameInfo
+					};
+
+					players.Add(profile);
+				}
+
+				if (familiarPlayerCount < 2) return;
+
+				players.Sort((a, b) => a.Placement.CompareTo(b.Placement));
+
+				for (int i = 0; i < players.Count; i++)
+				{
+					gameInfo.Players.Add(players[i].Name);
+					gameInfo.Heroes.Add(players[i].Hero);
+					gameInfo.Deaths.Add(players[i].Deaths);
+
+					if (gameInfo.IsTeam)
+					{
+						players[i].TeamMates = teams[players[i].Team];
+					}
+
+					// Hash this game result and skip if already seen
+					if (!playerResults.ContainsKey(players[i].Name))
+					{
+						Console.WriteLine($"Unfamiliar player: {players[i].Name}. File: {file}");
+					}
+					else
+					{
+						string key = players[i].Name + "." + gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+						if (seen.Contains(key))
+						{
+							skippedCount[players[i].Name] += 1;
+							continue;
+						}
+						seen.Add(key);
+						playerResults[players[i].Name].Add(players[i]);
+					}
+				}
+
+				if (gameInfo.IsTeam)
+				{
+					gameInfo.Teams = teams.Values.ToList();
+				}
+
+				string gameKey = gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+				if (seen.Contains(gameKey))
+				{
+					skippedGames += 1;
+					return;
+				}
+				else
+				{
+					allGames.Add(gameInfo);
+					seen.Add(gameKey);
+				}
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine($"Error processing {file}: {e.Message}");
+			}
+		}
+
+		private static void ProcessGame_v806(string file, Dictionary<string, List<PlayerProfile>> playerResults, List<GameInfo> allGames, HashSet<string> seen, Dictionary<string, int> skippedCount, ref int skippedGames)
+		{
+			float version = float.Parse(file.Split(['[', ']'])[1]);
+			try
+			{
+				BrawlhallaReplayReader.v8_06.Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
+
+				GameInfo gameInfo = new GameInfo
+				{
+					StartTime = DateTimeOffset.FromUnixTimeSeconds(replay.Entities[0].Player.ConnectionTime),
+					Map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']),
+					Version = version,
+					Checksum = replay.Checksum,
+					GameLength = (int)replay.Length,
+					IsTeam = replay.GameSettings.Flags.ToString().Contains("Teams") && replay.Entities.Count > 2
+				};
+
+				List<PlayerProfile> players = new List<PlayerProfile>();
+				Dictionary<int, List<string>> teams = new Dictionary<int, List<string>>();
+				int familiarPlayerCount = 0;
+
+				foreach (var entity in replay.Entities)
+				{
+					if (familiarPlayers.Any((player) => player.ToLowerInvariant() == entity.Name.ToLowerInvariant()))
+					{
+						familiarPlayerCount++;
+					}
+
+					int deaths = 0;
+					replay.Deaths.ToList().ForEach((death) =>
+					{
+						if (death.EntityID == entity.EntityID)
+						{
+							deaths += 1;
+						}
+					});
+
+					if (gameInfo.IsTeam)
+					{
+						if (!teams.ContainsKey(entity.Player.Team))
+						{
+							teams[entity.Player.Team] = new List<string>();
+						}
+						teams[entity.Player.Team].Add(entity.Name);
+					}
+
+					PlayerProfile profile = new PlayerProfile
+					{
+						Name = entity.Name,
+						Placement = replay.Results[entity.EntityID],
+						Deaths = deaths,
+						Hero = Constants.Heroes.ContainsKey((int)entity.Player.Heroes[0].HeroID) ? Constants.Heroes[(int)entity.Player.Heroes[0].HeroID] : entity.Player.Heroes[0].HeroID.ToString(),
+						Team = entity.Player.Team,
+						GameInfo = gameInfo
+					};
+
+					players.Add(profile);
+				}
+
+				if (familiarPlayerCount < 2) return;
+
+				players.Sort((a, b) => a.Placement.CompareTo(b.Placement));
+
+				for (int i = 0; i < players.Count; i++)
+				{
+					gameInfo.Players.Add(players[i].Name);
+					gameInfo.Heroes.Add(players[i].Hero);
+					gameInfo.Deaths.Add(players[i].Deaths);
+
+					if (gameInfo.IsTeam)
+					{
+						players[i].TeamMates = teams[players[i].Team];
+					}
+
+					// Hash this game result and skip if already seen
+					if (!playerResults.ContainsKey(players[i].Name))
+					{
+						Console.WriteLine($"Unfamiliar player: {players[i].Name}. File: {file}");
+					}
+					else
+					{
+						string key = players[i].Name + "." + gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+						if (seen.Contains(key))
+						{
+							skippedCount[players[i].Name] += 1;
+							continue;
+						}
+						seen.Add(key);
+						playerResults[players[i].Name].Add(players[i]);
+					}
+				}
+
+				if (gameInfo.IsTeam)
+				{
+					gameInfo.Teams = teams.Values.ToList();
+				}
+
+				string gameKey = gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+				if (seen.Contains(gameKey))
+				{
+					skippedGames += 1;
+					return;
+				}
+				else
+				{
+					allGames.Add(gameInfo);
+					seen.Add(gameKey);
+				}
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine($"Error processing {file}: {e.Message}");
+			}
+		}
+
+		private static void ProcessGame_v713(string file, Dictionary<string, List<PlayerProfile>> playerResults, List<GameInfo> allGames, HashSet<string> seen, Dictionary<string, int> skippedCount, ref int skippedGames)
+		{
+			float version = float.Parse(file.Split(['[', ']'])[1]);
+			try
+			{
+				BrawlhallaReplayReader.v7_13.Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
+
+				GameInfo gameInfo = new GameInfo
+				{
+					StartTime = DateTimeOffset.FromUnixTimeSeconds(replay.Entities[0].Player.ConnectionTime),
+					Map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']),
+					Version = version,
+					Checksum = replay.Checksum,
+					GameLength = (int)replay.Length,
+					IsTeam = replay.GameSettings.Flags.ToString().Contains("Teams") && replay.Entities.Count > 2
+				};
+
+				List<PlayerProfile> players = new List<PlayerProfile>();
+				Dictionary<int, List<string>> teams = new Dictionary<int, List<string>>();
+				int familiarPlayerCount = 0;
+
+				foreach (var entity in replay.Entities)
+				{
+					if (familiarPlayers.Any((player) => player.ToLowerInvariant() == entity.Name.ToLowerInvariant()))
+					{
+						familiarPlayerCount++;
+					}
+
+					int deaths = 0;
+					replay.Deaths.ToList().ForEach((death) =>
+					{
+						if (death.EntityID == entity.EntityID)
+						{
+							deaths += 1;
+						}
+					});
+
+					if (gameInfo.IsTeam)
+					{
+						if (!teams.ContainsKey(entity.Player.Team))
+						{
+							teams[entity.Player.Team] = new List<string>();
+						}
+						teams[entity.Player.Team].Add(entity.Name);
+					}
+
+					PlayerProfile profile = new PlayerProfile
+					{
+						Name = entity.Name,
+						Placement = replay.Results[entity.EntityID],
+						Deaths = deaths,
+						Hero = Constants.Heroes.ContainsKey((int)entity.Player.Heroes[0].HeroID) ? Constants.Heroes[(int)entity.Player.Heroes[0].HeroID] : entity.Player.Heroes[0].HeroID.ToString(),
+						Team = entity.Player.Team,
+						GameInfo = gameInfo
+					};
+
+					players.Add(profile);
+				}
+
+				if (familiarPlayerCount < 2) return;
+
+				players.Sort((a, b) => a.Placement.CompareTo(b.Placement));
+
+				for (int i = 0; i < players.Count; i++)
+				{
+					gameInfo.Players.Add(players[i].Name);
+					gameInfo.Heroes.Add(players[i].Hero);
+					gameInfo.Deaths.Add(players[i].Deaths);
+
+					if (gameInfo.IsTeam)
+					{
+						players[i].TeamMates = teams[players[i].Team];
+					}
+
+					// Hash this game result and skip if already seen
+					if (!playerResults.ContainsKey(players[i].Name))
+					{
+						Console.WriteLine($"Unfamiliar player: {players[i].Name}. File: {file}");
+					}
+					else
+					{
+						string key = players[i].Name + "." + gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+						if (seen.Contains(key))
+						{
+							skippedCount[players[i].Name] += 1;
+							continue;
+						}
+						seen.Add(key);
+						playerResults[players[i].Name].Add(players[i]);
+					}
+				}
+
+				if (gameInfo.IsTeam)
+				{
+					gameInfo.Teams = teams.Values.ToList();
+				}
+
+				string gameKey = gameInfo.StartTime.ToString("s", System.Globalization.CultureInfo.InvariantCulture);
+				if (seen.Contains(gameKey))
+				{
+					skippedGames += 1;
+					return;
+				}
+				else
+				{
+					allGames.Add(gameInfo);
+					seen.Add(gameKey);
+				}
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine($"Error processing {file}: {e.Message}");
+			}
+		}
+
 		// Prints the map, players, results, and heroes
 		// I just wrote this to correlate hero IDs with hero names
 		private static void Debug()
@@ -327,7 +829,7 @@ namespace BrawlhallaReplayReader
 			{
 				try
 				{
-					Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
+					BrawlhallaReplayReader.v9_08.Replay replay = new(File.Open(file, FileMode.Open, FileAccess.Read), false);
 					float version = float.Parse(file.Split(['[', ']'])[1]);
 					string map = file.Split([']', '(', '.'])[2].Trim([' ', '\'']);
 					List<string> entities = new List<string>();
