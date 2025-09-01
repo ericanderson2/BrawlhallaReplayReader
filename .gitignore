@@ -5,4 +5,5 @@ obj/
 Properties/
 output/
 replays/
+node_modules/
 BrawlhallaReplayReader.csproj.user

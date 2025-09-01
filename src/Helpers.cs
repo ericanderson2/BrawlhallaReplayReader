@@ -28,7 +28,7 @@ namespace BrawlhallaReplayReader
 
         public static bool IsVersionValid(float version)
         {
-            return (version >= 6.05 && version <= 7.02) || (version >= 8.00 && version <= 9.10f);
+            return (version >= 6.05 && version <= 7.02) || (version >= 8.00 && version <= 9.11f);
         }
 
         public static float GetReplayFileVersion(string filename)

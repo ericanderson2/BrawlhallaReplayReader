@@ -2,7 +2,6 @@
   "dependencies": {
     "brawlhalla-replay-reader": "^1.0.3",
     "brawlhalla-replay-reader-1-0-1": "npm:brawlhalla-replay-reader@^1.0.1",
-    "brawlhalla-replay-reader-1-0-2": "npm:brawlhalla-replay-reader@^1.0.2",
     "JSON": "^1.0.0"
   }
 }

@@ -34,8 +34,8 @@ namespace BrawlhallaReplayReader
 			if (args.Length == 0 || (args.Length > 0 && args[0].ToCharArray()[0] == 'd'))
 			{
 				InitializeNodeJsPlatform();
-				GameReplay replay = ProcessGame("replays\\Old\\[7.03] SpiritRealm.replay");
-				Console.WriteLine(replay.ToString());
+				GameReplay replay = ProcessGame("replays/Old/[7.02] SmallEnigma.replay");
+				Console.WriteLine(replay);
 				NodeJsRuntime?.Dispose();
 				return;
 			}
@@ -75,7 +75,12 @@ namespace BrawlhallaReplayReader
 				}
 			}
 
-			if (version <= 9.10f && version >= 9.08f)
+			if (version >= 9.11f)
+			{
+				v9_11.Replay replay = new(File.Open(filename, FileMode.Open, FileAccess.Read), false);
+				return new GameReplay(replay, version);
+			}
+			else if (version >= 9.08f)
 			{
 				v9_08.Replay replay = new(File.Open(filename, FileMode.Open, FileAccess.Read), false);
 				return new GameReplay(replay, version);
@@ -291,11 +296,6 @@ namespace BrawlhallaReplayReader
 					if (isNumeric && !unknownMaps.ContainsKey(n))
 					{
 						unknownMaps.Add(n, file.Split(' ')[1]);
-					}
-
-					if (version < 8.0f)
-					{
-						replay.WriteToJson(file + ".json");
 					}
 
 					int familiarPlayerCount = replay.Players.Count(player => familiarPlayers.Contains(player.Name));

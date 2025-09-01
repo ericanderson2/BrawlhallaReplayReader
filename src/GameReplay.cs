@@ -302,6 +302,59 @@ namespace BrawlhallaReplayReader
             SortPlayersByPlacement();
         }
 
+        public GameReplay(v9_11.Replay replayData, float gameVersion = 0)
+        {
+            ReplayVersion = (int)replayData.Version;
+            GameVersion = gameVersion;
+            GameLength = (int)replayData.Length;
+            Map = Helpers.GetLevelName((int)replayData.LevelID);
+            MultipleHeroesUsed = false;
+            IsTeam = new HashSet<int>(replayData.Results.Values).Count != replayData.Results.Values.Count();
+            Dictionary<int, List<string>> teamMap = new Dictionary<int, List<string>>();
+
+            var entities = replayData.Entities.ToList();
+            if (IsTeam)
+            {
+                replayData.Results.Keys.ToList().ForEach(playerId =>
+                {
+                    var placement = replayData.Results[playerId];
+                    if (!teamMap.ContainsKey(placement))
+                    {
+                        teamMap[placement] = new List<string>();
+                    }
+                    string playerName = entities.Find(e => e.EntityID == playerId).Name ?? playerId.ToString();
+                    teamMap[placement].Add(playerName);
+                });
+                Teams = teamMap.Values.ToList();
+            }
+
+            entities.ForEach((entity) =>
+            {
+                if (!replayData.Results.ContainsKey(entity.EntityID))
+                {
+                    throw new Exception($"No placement results found for player {entity.Name}. The replay owner likely left while the match was in progress.");
+                }
+
+                Players.Add(new Player()
+                {
+                    Name = entity.Name,
+                    Hero = Helpers.GetHeroName((int)entity.Player.Heroes[0].HeroID),
+                    Deaths = replayData.Deaths.Count(d => d.EntityID == entity.EntityID),
+                    Placement = replayData.Results[entity.EntityID],
+                    JoinTime = DateTimeOffset.FromUnixTimeSeconds(entity.Player.ConnectionTime),
+                    TeamMates = IsTeam ? teamMap[replayData.Results[entity.EntityID]] : []
+                });
+
+                if (entity.Player.Heroes.Count > 1)
+                {
+                    MultipleHeroesUsed = true;
+                }
+            });
+
+            InitStartTime();
+            SortPlayersByPlacement();
+        }
+
         public void InitStartTime()
         {
             Player? minJoinTimePlayer = Players.MinBy(p => p.JoinTime);
