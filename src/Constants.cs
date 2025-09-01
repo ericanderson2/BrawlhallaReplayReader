@@ -2,9 +2,9 @@ namespace BrawlhallaReplayReader
 {
     public static class Constants
     {
-        public static readonly List<string> PlayerHeaders = new List<string> { "time", "name", "placement", "deaths", "hero", "map", "playerCount", "gameLength", "players", "version", "checksum", "isTeam", "teammates" };
+        public static readonly List<string> PlayerHeaders = new List<string> { "time", "name", "placement", "deaths", "hero", "map", "playerCount", "gameLength", "players", "version", "unused", "isTeam", "teammates" };
 
-        public static readonly List<string> GameHeaders = new List<string> { "time", "map", "version", "checksum", "players", "heroes", "deaths", "playerCount", "winner", "gameLength", "isTeam", "teams" };
+        public static readonly List<string> GameHeaders = new List<string> { "time", "map", "version", "players", "heroes", "deaths", "playerCount", "winner", "gameLength", "isTeam", "teams" };
 
         public static readonly Dictionary<int, string> Heroes = new Dictionary<int, string>{
             // It seems like 1 and 2 are unused
@@ -74,6 +74,90 @@ namespace BrawlhallaReplayReader
             { 66, "king_zuva" },
             { 67, "priya" },
             { 68, "ransom" }
+        };
+
+        public static readonly Dictionary<int, string> Levels = new Dictionary<int, string>{
+            { 1, "TwilightGrove"},
+            { 2, "Brawlhaven"},
+            { 3, "GrumpyTemple" },
+            { 7, "TheGreatHall" },
+            { 11, "KingsPass" },
+            { 12, "SmallKingsPass" },
+            { 22, "TitansEnd" },
+            { 24, "Thundergard" },
+            { 25, "ShipwreckFalls" },
+            { 40, "TheEnigma" },
+            { 43, "BlackguardKeep" },
+            { 47, "MammothFortress" },
+            { 55, "BigTitansEnd" },
+            { 56, "BigThundergard" },
+            { 57, "BigTwilightGrove" },
+            { 58, "BigGreatHall" },
+            { 59, "BigLostLabyrinth" },
+            { 62, "SmallThundergard" },
+            { 63, "SmallMammoth" },
+            { 64, "SmallBlackguard" },
+            { 65, "SmallGreatHall" },
+            { 70, "TheFangwild" },
+            { 73, "LostLabyrinth" },
+            { 74, "BigDodgebomb" },
+            { 76, "MiamiDome" },
+            { 81, "SmallGrumpy" },
+            { 94, "SmallBrawlhaven" },
+            { 95, "SmallEnigma" },
+            { 100, "SmallFangwild" },
+            { 115, "PlainsofPassage" },
+            { 124, "Apocalypse" },
+            { 127, "SmallGalvanPrime" },
+            { 128, "BigMiamiDome" },
+            { 131, "TreeFort" },
+            { 135, "DemonIsland" },
+            { 136, "BigCrystalTemple" },
+            { 137, "CrystalTemple" },
+            { 138, "TempleRuins" },
+            { 139, "GalvanPrime" },
+            { 141, "SunDriveCity" },
+            { 143, "SpiritRealm" },
+            { 144, "LichsTomb" },
+            { 151, "SpiritRealm" },
+            { 153, "BigWorldsEnd" },
+            { 154, "DivineSpirit" },
+            { 174, "WorldsEnd" },
+            { 175, "TheTurtlesLair" },
+            { 177, "SmallTurtles" },
+            { 178, "FortressOfTheLions" },
+            { 180, "SiegeofLions" },
+            { 182, "SmallFortressOfTheLions" },
+            { 185, "SuzakuCastle" },
+            { 186, "VoidMinor" },
+            { 187, "VoidMajor" },
+            { 190, "ArashikageDojo" },
+            { 194, "CrystalTempleEXP" },
+            { 210, "FabledCity" },
+            { 211, "SmallFabledCity" },
+            { 212, "WesternAirTemple" },
+            { 213, "Halo" },
+            { 216, "FlorenceRooftop" },
+            { 217, "FlorenceTerrace" },
+            { 218, "DraculasCastle" },
+            { 219, "InvertedDraculasCastle" },
+            { 220, "ShorwindFishing" },
+            { 222, "WesternAirTemple" },
+            { 223, "MishimaDojo" },
+            { 229, "SmallTerminus" },
+            { 231, "Terminus" },
+            { 232, "BikiniBottom" },
+            { 233, "SmallWorldsEnd" },
+            { 234, "StarlightFalls" },
+            { 235, "CrumblingChasm" },
+            { 236, "ApocalypticChasm" },
+            { 237, "Mustafar" },
+            { 238, "CrumbledChasm" },
+            { 242, "TheedPower" },
+            { 246, "SmallTheed" },
+            { 249, "MosEisley" },
+            { 258, "OldIvaldiMine" },
+            { 266, "CastleBatavia" }
         };
     }
 }
